@@ -10,17 +10,41 @@ images.push("http://localhost/cloudattack/red-circle-hi.png");
 
 
 
-if(map_context){
 
-}
+
 
 
 var app = angular.module("cloudAttack",[]);
 app = app.controller("mainCtrl", ['$scope', '$window', function($scope,$window){
+	
 
+	//Nodejs socket	
 	var url = "http://localhost:8080";
-
 	var socket = io.connect(url);
+
+
+	/*
+	 Handle loading all resources 
+
+	 */
+	$scope.resources = {
+		res : new Object(resource_loader),
+		prec : 0,
+	}
+
+	$scope.resources.res.load({bullet : 'http://localhost/cloudattack/assets/img/bullet.png'});
+
+	var prec_timer = setInterval(function(){
+		$scope.resources.prec = $scope.resources.res.getPrecent();
+		$scope.$apply();
+		if($scope.resources.prec >= 100){
+			clearInterval(prec_timer);
+		}
+		
+	},200);
+
+
+
 
 
 
@@ -29,6 +53,12 @@ app = app.controller("mainCtrl", ['$scope', '$window', function($scope,$window){
 	console.log($window.innerWidth);
 	map.width = $window.innerWidth; 
 	map.height = $window.innerHeight;
+
+
+	socket.on("connect", function(){
+	
+		socket.emit("new_player", {screen_location_x : map.width / 2, screen_location_y : map.height / 2} );
+	});
 
 
 	var offScreenCanvas = document.createElement("canvas"); 
@@ -47,24 +77,64 @@ app = app.controller("mainCtrl", ['$scope', '$window', function($scope,$window){
 		} 
 	}
 
+
+
 	$scope.randomInt = function(min,max){
 		return Math.floor(Math.random() * (max - min + 1)) + min;
 	}
 
-	$scope.player = {
-		life : 200, 
-		bullets : 200,
-		character : 1, 
-		target_x : 0,
-		target_y : 0,
+	//x2,y2 represents player position, in report to object
+	$scope.isWithinDistance = function(x,y,x2,y2){
+		if( (x <= x2 - (map.width / 2) || x <= x2 + (map.width / 2)) && ( (y <= y2 - (map.height / 2))  || (y <= y2 + (map.height / 2))) ){
+			//If is withing range return the screen coordonates
+			var screen_x = map.width / 2;
+			var screen_y = map.height / 2;
 
+
+
+			if(x < x2){
+				screen_x = screen_x - (x2 - x);
+			}else if(x > x2){
+				screen_x = screen_x + (x - x2);
+			}
+
+			if(y < y2){
+				screen_y = screen_y - (y2 - y);
+			}else if(y > y2){
+				screen_y = screen_y + (y - y2);
+			}
+
+			return [screen_x,screen_y];
+		}
+
+	}
+
+	$scope.player = {
+		id : '' ,
+		location : '',
+		width : '', 
+		height : '',
+		prev_location : [0,0],
+		target_location : [0,0],
+		screen_location : [0,0],
 
 	};
 
 
 	$scope.free_bullets = []; 
+	$scope.bullets = []; 
+	$scope.players = []; 
 
+	socket.on("bullets", function(bullets){
+		$scope.bullets = bullets;
+	});
 
+	socket.on("player", function(player){
+		if(player != null){
+			$scope.player = player ; 
+		}
+		// $scope.$apply();
+	});
 
 	$scope.bullets = {
 		character : {
@@ -94,6 +164,10 @@ app = app.controller("mainCtrl", ['$scope', '$window', function($scope,$window){
 		}
 	}
 
+
+
+
+
 	angular.element(map).on("mousemove", function(e){
 
 		// $scope.player.character_x = e.pageX; 
@@ -102,27 +176,35 @@ app = app.controller("mainCtrl", ['$scope', '$window', function($scope,$window){
 			x : e.pageX, 
 			y : e.pageY, 
 		});
+
+
 	});
 
 	angular.element("body").on("keyup", function(e){
-		console.log($scope.keys.space.pressed);
-
+		// console.log($scope.keys.space.pressed);
 		if(e.keyCode == '32'){
 			e.preventDefault();	
-			
-
-
 			//Check if fired bullete or activated signature
 			$scope.keys.space.keydown = false;
 			if((new Date().getTime() - $scope.keys.space.pressed.getTime())  / 1000  >= 0.5){
 				$scope.status.signature_active = true;
 				$scope.status.bullet_fired = false;
+					// console.log(socket.connected);
+				  socket.emit("spacepress",{bullet : false});
 			}else{
 				$scope.status.bullet_fired = true;
 				$scope.status.signature_active = false;
+
+				socket.emit("spacepress",{bullet : true,});
+				
+				socket.on("disconect", function(){
+					socket.socket.reconnect();
+				});
+
 			}
+
+
 		}
-		console.log($scope.status);
 	});
 
 	angular.element("body").on("keydown", function(e){
@@ -134,9 +216,6 @@ app = app.controller("mainCtrl", ['$scope', '$window', function($scope,$window){
 				$scope.keys.space.keydown = true;
 			}
 		}
-
-
-
 	});
 
 
@@ -157,14 +236,14 @@ app = app.controller("mainCtrl", ['$scope', '$window', function($scope,$window){
 	
 	 	var bullet = new Image();
 		bullet.src= images[1];
-
+		map_context.drawImage($scope.resources.res.get("bullet"),22, 22, 32,32);
 		switch(type){
 			case "free_bullets":
 			// var bullet = offScreenCanvas.getImageData(0,0,50,50);
 			 angular.forEach($scope.generate_free_bullets(200) , function(free_bullet){
 			 	 if(free_bullet.activated){
 			 	 	// map_context.putImageData(bullet, free_bullet.pos.x, free_bullet.pos.y);
-			 	 	map_context.drawImage(bullet, free_bullet.pos.x, free_bullet.pos.y, 20,20);
+			 	 	// map_context.drawImage(bullet, free_bullet.pos.x, free_bullet.pos.y, 20,20);
 			 	 }
 			 });
 			 break;
@@ -172,7 +251,16 @@ app = app.controller("mainCtrl", ['$scope', '$window', function($scope,$window){
 			    var img = new Image(); 
 			    img.src = images[0];
 			 	 map_context.drawImage(img, Math.round(map.width / 2), Math.round(map.height / 2),80,50);
-
+			 break; 
+			 case "bullets":
+			 	for(var i = 0; i < $scope.bullets.length; i++){
+			 		
+			 		var bullet_screen_location = $scope.isWithinDistance($scope.bullets[i].location[0], $scope.bullets[i].location[1], $scope.player.location[0], $scope.player.location[1]);
+			 		if(bullet_screen_location != undefined){
+						map_context.drawImage($scope.resources.res.get("bullet"), bullet_screen_location[0], bullet_screen_location[1], 15,12);
+			 		}
+			 	}
+			 break;
 		}
 	}
 
@@ -202,7 +290,6 @@ app = app.controller("mainCtrl", ['$scope', '$window', function($scope,$window){
 
 
 		if($scope.status.bullet_fired){
-			map_context.drawImage(img2,$ .player.target_y, $scope.player.character_y,300,310); 
 			$scope.status.bullet_fired = false;
 		}
 
