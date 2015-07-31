@@ -13,22 +13,41 @@ var sockets = {};
 
 
 var vector = {
-
 	x : 0 ,
 	y : 0, 
+	distance: 0,
+	angle: 0,
 
 	//This function is for converting from screen map 
-	convert : function(vector, target_x,target_y){
-		if(vector.x - target_x < 0 ){
-			vector.x += Math.abs(vector.x - target_x); 
+	toPolar : function(){
+		this.angle = Math.atan2(this.y, this.x);
+	},
+
+	setDistance : function(x,y,d){
+	
+		this.distance = Math.sqrt(Math.pow(this.x,2) + Math.pow(this.y,2));
+		// console.log("distance"+y );
+	
+	},
+
+	toCartesian : function(){
+
+		this.x = this.distance * Math.cos(this.angle); 
+		this.y = this.distance * Math.sin(this.angle);
+		// console.log("Here "+this.x+ " y:"+this.y+ " ditance :"+this.distance+ " angle :"+this.angle);
+	},
+
+	screenToMap : function(x,y, target_x,target_y){
+		if(x - target_x < 0 ){
+			this.x +=  Math.abs(x - target_x); 
 		}else{
-			vecot.x -= vector.x - target_x;
+			this.x -= Math.abs(x - target_x);
 		}
 
-		if(vector.y - target_y < 0){
-			vector.y += Math.abs(vector.y - target_y);
+		if(y - target_y < 0){
+			this.y += Math.abs(y - target_y);
 		}else{
-			vector.y -= vector.y - target_y;
+			this.y -= Math.abs(y - target_y);
 		}
 
 	}
@@ -159,19 +178,8 @@ update_player_location : function(player){
    	update_player : function(data,player_id){
    			var player = this.players[this.players_id_key[player_id]];
    			if(data.hasOwnProperty("x") && data.hasOwnProperty("y")){
-   				vector = new Object(vector); 
-
-   				current_vector.x = player.location[0];
-   				current_vector.y = player.location[1]; 
-
-   				screen_vector = new Object(vector); 
-   				screen_vector.x = player.screen_location[0];
-   				screen_vector.y = player.screen_location[1]; 
-
-   				current_vector.convert(screen_vector,data.x,data.y);
-
-   				player.target_location[0] = current_vector.x;
-   				player.target_location[1] = current_vector.y;
+   				player.target_location[0] = data.x;
+   				player.target_location[1] = data.y;
    			}
    			if(data.hasOwnProperty('screen_location_x') && data.hasOwnProperty('screen_location_y')){
    				player.screen_location[0] = data.screen_location_x;
@@ -194,15 +202,28 @@ update_player_location : function(player){
    		var player = this.players[this.players_id_key[player_id]];
    
    		if(data.bullet){
+
+   				var bullet_vector = new Object(vector); 
+   				bullet_vector.x = player.location[0] ; 
+   				bullet_vector.y = player.location[1];
+   				// console.log(player);
+
+    			bullet_vector.screenToMap(player.screen_location[0], player.screen_location[1], player.target_location[0], player.target_location[1]); 
     		//Fire bullet
     		var bullet = {
     			id : player.id + this.bullets.length, 
     			fired_location : [player.screen_location[0], player.screen_location[1]], //This is the player on screen location: ex x: screenWidth / 2 
     			prev_location : [0,0],
-    			location : [player.location[0] + (this.config.players.default_width / 2) ,player.location[1] + (this.config.players.default_height / 2)],
-    			target_location : [player.target_location[0] , player.target_location[1]],
+    			location :  [player.location[0] + (this.config.players.default_width / 2), player.location[1] + (this.config.players.default_height / 2)],
+    			target_location : [bullet_vector.x, bullet_vector.y],
     			distance : 0,
     		};
+    		console.log("BULLET");
+    		console.log(bullet);
+
+    		console.log("PLAyer");
+
+    		console.log(player);
     		this.bullets.push(bullet);
     	}else{
     		//Activate special ability
@@ -214,34 +235,28 @@ update_player_location : function(player){
     	for(var i = 0 ; i < this.bullets.length;i++){
     		var bullet = this.bullets[i];
 
-
-
     		if(bullet.distance < this.config.players.default_bullet_distance){
     			// console.log("heree");
     			var x = bullet.location[0];
     			var y = bullet.location[1];
 
     			// console.log(bullet.distance);
-    			bullet.distance += this.config.players.default_bullet_speed * this.config.time.last_update_sec_diff ;
+    			var bullet_vector = new Object(vector);
+    			bullet_vector.x = bullet.target_location[0] - bullet.fired_location[0];
+    			bullet_vector.y = bullet.target_location[1] - bullet.fired_location[1];
+				bullet_vector.toPolar();
 
-    			if(bullet.fired_location[0] > bullet.target_location[0]){
-    				x -= (this.config.players.default_bullet_speed * this.config.time.last_update_sec_diff ); 
+    			bullet.distance = this.config.players.default_bullet_speed * this.config.time.last_update_sec_diff ;
+    			bullet_vector.setDistance(bullet.location[0],bullet.location[1],bullet.distance);
 
-    			}else if(bullet.fired_location[0] < bullet.target_location[0]){
-    				x +=   (this.config.players.default_bullet_speed * this.config.time.last_update_sec_diff ) ; 
-    			}
+				bullet_vector.toCartesian();
+    				
+				// console.log(bullet.target_location[0]);
+		   	    bullet.location[0] = bullet_vector.x ;
+		   	    bullet.location[1] = bullet_vector.y ;
+		   	    // console.log(bullet.location);
 
 
-		   	    if(bullet.fired_location[1] > bullet.target_location[1]){
-		   	    	y -= this.config.players.default_bullet_speed * this.config.time.last_update_sec_diff; 
-
-		   	    }else if(bullet.fired_location[1] < bullet.target_location[1]){
-		   	    	y += this.config.players.default_bullet_speed * this.config.time.last_update_sec_diff; 
-
-		   	    }
-
-		   	    bullet.location[0] = x;
-		   	    bullet.location[1] = y;
 		   	}else{
 		   		// console.log("Deleting");
 		   		// this.bullets = this.bullets.splice(i,1);

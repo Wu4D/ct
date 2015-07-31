@@ -250,7 +250,7 @@ app = app.controller("mainCtrl", ['$scope', '$window', function($scope,$window){
 			 case "player":
 			    var img = new Image(); 
 			    img.src = images[0];
-			 	 map_context.drawImage(img, Math.round(map.width / 2), Math.round(map.height / 2),80,50);
+			 	 // map_context.drawImage(img, Math.round(map.width / 2), Math.round(map.height / 2),80,50);
 			 break; 
 			 case "bullets":
 			 	for(var i = 0; i < $scope.bullets.length; i++){
