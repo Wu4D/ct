@@ -32,7 +32,8 @@ app = app.controller("mainCtrl", ['$scope', '$window', function($scope,$window){
 		prec : 0,
 	}
 
-	$scope.resources.res.load({bullet : 'http://localhost/cloudattack/assets/img/bullet.png'});
+	$scope.resources.res.load({bullet : 'http://localhost/cloudattack/assets/img/bullet.png',player : 'http://localhost/cloudattack/assets/img/bee.png',
+								free_bullets : 'http://localhost/cloudattack/assets/img/thunder.png'});
 
 	var prec_timer = setInterval(function(){
 		$scope.resources.prec = $scope.resources.res.getPrecent();
@@ -54,10 +55,9 @@ app = app.controller("mainCtrl", ['$scope', '$window', function($scope,$window){
 	map.width = $window.innerWidth; 
 	map.height = $window.innerHeight;
 
-
 	socket.on("connect", function(){
-	
 		socket.emit("new_player", {screen_location_x : map.width / 2, screen_location_y : map.height / 2} );
+		console.log("emiit");
 	});
 
 
@@ -120,13 +120,24 @@ app = app.controller("mainCtrl", ['$scope', '$window', function($scope,$window){
 
 	};
 
-
 	$scope.free_bullets = []; 
 	$scope.bullets = []; 
 	$scope.players = []; 
 
 	socket.on("bullets", function(bullets){
 		$scope.bullets = bullets;
+
+	});
+
+	socket.on("free_bullets", function(free_bullets){
+		// console.log(free_bullets);
+		$scope.free_bullets = free_bullets;
+	});
+
+
+	socket.on("players", function(players){
+		// console.log(free_bullets);
+		$scope.players = players;
 	});
 
 	socket.on("player", function(player){
@@ -234,40 +245,51 @@ app = app.controller("mainCtrl", ['$scope', '$window', function($scope,$window){
 	$scope.createEntity = function(type){
 		// var bullet = offScreenCanvas_context.getImageData(0,0,50,50); 
 	
-	 	var bullet = new Image();
-		bullet.src= images[1];
-		map_context.drawImage($scope.resources.res.get("bullet"),22, 22, 32,32);
 		switch(type){
 			case "free_bullets":
-			// var bullet = offScreenCanvas.getImageData(0,0,50,50);
-			 angular.forEach($scope.generate_free_bullets(200) , function(free_bullet){
-			 	 if(free_bullet.activated){
-			 	 	// map_context.putImageData(bullet, free_bullet.pos.x, free_bullet.pos.y);
-			 	 	// map_context.drawImage(bullet, free_bullet.pos.x, free_bullet.pos.y, 20,20);
-			 	 }
-			 });
+				for(var i=0;i < $scope.free_bullets.length;i++){
+	
+
+					var location_on_screen = $scope.isWithinDistance($scope.free_bullets[i].location[0], $scope.free_bullets[i].location[1], $scope.player.location[0], $scope.player.location[1]);
+			 		if(location_on_screen != undefined){
+						map_context.drawImage($scope.resources.res.get("free_bullets"), location_on_screen[0], location_on_screen[1], 30,30);
+			 		}	
+				}
+				  
 			 break;
 			 case "player":
-			    var img = new Image(); 
-			    img.src = images[0];
-			 	 // map_context.drawImage(img, Math.round(map.width / 2), Math.round(map.height / 2),80,50);
+			 	map_context.drawImage($scope.resources.res.get("player"), Math.round(map.width / 2), Math.round(map.height / 2),$scope.resources.res.get("player").width,$scope.resources.res.get("player").height);
 			 break; 
 			 case "bullets":
 			 	for(var i = 0; i < $scope.bullets.length; i++){
-			 		
 			 		var bullet_screen_location = $scope.isWithinDistance($scope.bullets[i].location[0], $scope.bullets[i].location[1], $scope.player.location[0], $scope.player.location[1]);
 			 		if(bullet_screen_location != undefined){
 						map_context.drawImage($scope.resources.res.get("bullet"), bullet_screen_location[0], bullet_screen_location[1], 15,12);
 			 		}
 			 	}
 			 break;
+			 case "players":
+			 
+				for(var i = 0; i < $scope.players.length; i++){
+					if($scope.players[i].id != $scope.player.id){
+						var players_screen_location = $scope.isWithinDistance($scope.players[i].location[0], $scope.players[i].location[1], $scope.player.location[0], $scope.player.location[1]);
+				 		if(players_screen_location != undefined){
+							map_context.drawImage($scope.resources.res.get("player"), players_screen_location[0], players_screen_location[1], 15,12);
+				 		}
+					}
+			 		
+			 	}
+
+			 break;
 		}
 	}
 
 	$scope.createEntities = function(){
-		$scope.createEntity("bullets");
 		$scope.createEntity("free_bullets");
+		$scope.createEntity("bullets");
 		$scope.createEntity("player");
+
+		$scope.createEntity("players");
 
 
 	}

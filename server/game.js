@@ -4,7 +4,7 @@ var app = require("http").createServer(function(request, response){
 });
 
 app.listen(8080, function(){
-		console.log("listening on port 8080");
+	console.log("listening on port 8080");
 });
 
 var io = require("socket.io")(app, {log: true});
@@ -23,11 +23,12 @@ var vector = {
 		this.angle = Math.atan2(this.y, this.x);
 	},
 
-	setDistance : function(x,y,d){
-	
+	magnitude : function(){
+
 		this.distance = Math.sqrt(Math.pow(this.x,2) + Math.pow(this.y,2));
 		// console.log("distance"+y );
-	
+		// console.log("X:"+this.x);
+
 	},
 
 	toCartesian : function(){
@@ -50,6 +51,28 @@ var vector = {
 			this.y -= Math.abs(y - target_y);
 		}
 
+	},
+
+	div : function(value){
+		this.x = this.x / value; 
+		this.y = this.y / value;
+	},
+
+
+	normalize : function(){
+
+		if(this.distance != 0){
+			this.div(this.distance);
+		}
+		// console.log('Normal x :'+this.x);
+
+	},
+
+
+	multiply : function(value){
+		this.x = this.x * value;
+		this.y = this.y * value;
+		// this.distance  = this.distance * value;
 	}
 
 } 
@@ -70,9 +93,9 @@ var init = {
    			minimum_spawn_distance : 200, // The minmum spawned player distance from another player
    			default_width : 80,
    			default_height : 50,
-   			default_speed : 7, //7 px per second
-   			default_bullet_distance: 200, 
-   			default_bullet_speed : 200, //200 px per second
+   			default_speed : 250, //7 px per second 
+   			default_bullet_distance: 1000,  
+   			default_bullet_speed : 700, //200 px per second
    		},
 
    		time : {
@@ -114,13 +137,34 @@ var init = {
     }
 },
 
+generate_free_bullets : function(number){
+	
+
+	var free_bullets = [];
+	for(var i = 0; i < number;i++){
+		var free_bullet = {
+			location : 
+			[this.generateInt(0,this.config.map.width),
+			this.generateInt(0,this.config.map.height)]
+			,
+			activated : true,
+		}
+		free_bullets.push(free_bullet);
+
+	}
+	this.free_bullets = free_bullets;
+
+	
+
+},
+
 new_player : function(player_id,data){
 	var player = {
 		id : player_id ,
 		location : this.generePlayerLocation(),
 		width : this.config.players.default_width, 
 		height : this.config.players.default_height,
-		prev_location : [0,0],
+		before_location : [0,0],
 		target_location : [0,0],
 		screen_location : [(data.hasOwnProperty("screen_location_x") ? data.screen_location_x : 0), (data.hasOwnProperty("screen_location_y") ? data.screen_location_y : 0)],
 
@@ -138,84 +182,90 @@ update_player_location : function(player){
    		
    		var x = player.location[0];
    		var y = player.location[1];
+   		// console.log("HEre  \n\n\n\n"+x);
 
 
-   		if(player.prev_location[0] > player.target_location[0]){
-   			x -= (this.config.players.default_speed * this.config.time.last_update_sec_diff ); 
+   		var player_vector = new Object(vector); 
+   		player_vector.x =  player.target_location[0] - player.before_location[0]; 
+   		player_vector.y =   player.target_location[1] - player.before_location[1]; 
+   		// console.log("target_location x: "+player.before_location[0] + " y : "+player.before_location[1]);
 
-   		}else if(player.prev_location[0] < player.target_location[0]){
-   			x +=   (this.config.players.default_speed * this.config.time.last_update_sec_diff ) ; 
-   		}
+
+	 	// console.log(player_vector.x);
+	 	player_vector.magnitude();
+	 	player_vector.normalize();
+	 	player_vector.multiply((this.config.players.default_speed * this.config.time.last_update_sec_diff)); 
 
    	    // console.log("X::::"+player.target_location[0]);
 
-
-   	    if(player.prev_location[1] > player.target_location[1]){
-   	    	y -= this.config.players.default_speed * this.config.time.last_update_sec_diff; 
-
-   	    }else if(player.prev_location[1] < player.target_location[1]){
-   	    	y += this.config.players.default_speed * this.config.time.last_update_sec_diff; 
-
-   	    }
+   	    player.location[0] +=  player_vector.x;
+   	    player.location[1] +=  player_vector.y;
+   	    // console.log("loc:     x = "+player.location[0] + ", y = "+player.location[1]);
 
 
-   	    if(x <= this.config.map.width + this.config.players.default_width && y <= this.config.map.height + this.config.players.default_height){
-   	    	player.prev_location[0] = player.target_location[0];
-   	    	player.prev_location[1] = player.target_location[1];
+
+   	    if(player.location[0] >= this.config.map.width - this.config.players.default_width && player.location[1] >= this.config.map.height - this.config.players.default_height){
+
    	    	player.location[0] = x;
    	    	player.location[1] = y;
 
 
-
-   	    }
-
    	    // console.log("X: "+player.location[0]);
    	    // console.log("y: "+player.location[1]);
+   	}
+
+   },
+
+   update_player : function(data,player_id){
+   	var player = this.players[this.players_id_key[player_id]];
+   	if(data.hasOwnProperty("x") && data.hasOwnProperty("y")){
+
+   		var player_vector = new Object(vector); 
+
+   		player_vector.x = player.location[0] ; 
+   		player_vector.y = player.location[1];
+
+   		player_vector.screenToMap(player.screen_location[0], player.screen_location[1], data.x, data.y); 
+   		player.target_location[0] = player_vector.x;
+   		player.target_location[1] = player_vector.y;
+
+   		player.before_location[0] = player.location[0];
+   		player.before_location[1] = player.location[1];
+
+   	}
+   	if(data.hasOwnProperty('screen_location_x') && data.hasOwnProperty('screen_location_y')){
+   		player.screen_location[0] = data.screen_location_x;
+   		player.screen_location[1] = data.screen_location_y;
+
+   	}
 
 
-   	},
 
-   	update_player : function(data,player_id){
-   			var player = this.players[this.players_id_key[player_id]];
-   			if(data.hasOwnProperty("x") && data.hasOwnProperty("y")){
-   				player.target_location[0] = data.x;
-   				player.target_location[1] = data.y;
-   			}
-   			if(data.hasOwnProperty('screen_location_x') && data.hasOwnProperty('screen_location_y')){
-   				player.screen_location[0] = data.screen_location_x;
-   				player.screen_location[1] = data.screen_location_y;
+   },
 
-   			}
+   update_players_location: function(){
+   	var length = this.players.length;
+   	for(var i = 0; i < length;i++){
+   		this.update_player_location(this.players[i]);
+   	}
+   },
 
+   spacepress : function(data,player_id){
+   	var player = this.players[this.players_id_key[player_id]];
+
+   	if(data.bullet){
 
    		
-   	},
 
-   	update_players_location: function(){
-   		var length = this.players.length;
-   		for(var i = 0; i < length;i++){
-   			this.update_player_location(this.players[i]);
-   		}
-   	},
 
-   	spacepress : function(data,player_id){
-   		var player = this.players[this.players_id_key[player_id]];
-   
-   		if(data.bullet){
-
-   				var bullet_vector = new Object(vector); 
-   				bullet_vector.x = player.location[0] ; 
-   				bullet_vector.y = player.location[1];
-   				// console.log(player);
-
-    			bullet_vector.screenToMap(player.screen_location[0], player.screen_location[1], player.target_location[0], player.target_location[1]); 
     		//Fire bullet
     		var bullet = {
     			id : player.id + this.bullets.length, 
-    			fired_location : [player.screen_location[0], player.screen_location[1]], //This is the player on screen location: ex x: screenWidth / 2 
+    			// fired_location : [player.screen_location[0], player.screen_location[1]], //This is the player on screen location: ex x: screenWidth / 2 
+    			fired_location :  [player.location[0] + (this.config.players.default_width / 2), player.location[1] + (this.config.players.default_height / 2)],
     			prev_location : [0,0],
     			location :  [player.location[0] + (this.config.players.default_width / 2), player.location[1] + (this.config.players.default_height / 2)],
-    			target_location : [bullet_vector.x, bullet_vector.y],
+    			target_location : [player.target_location[0], player.target_location[1]],
     			distance : 0,
     		};
     		console.log("BULLET");
@@ -244,23 +294,27 @@ update_player_location : function(player){
     			var bullet_vector = new Object(vector);
     			bullet_vector.x = bullet.target_location[0] - bullet.fired_location[0];
     			bullet_vector.y = bullet.target_location[1] - bullet.fired_location[1];
-				bullet_vector.toPolar();
 
-    			bullet.distance = this.config.players.default_bullet_speed * this.config.time.last_update_sec_diff ;
-    			bullet_vector.setDistance(bullet.location[0],bullet.location[1],bullet.distance);
 
-				bullet_vector.toCartesian();
-    				
+    			bullet_vector.magnitude();
+    			bullet_vector.normalize();
+    			bullet_vector.multiply(this.config.players.default_bullet_speed * this.config.time.last_update_sec_diff);
+
+
 				// console.log(bullet.target_location[0]);
-		   	    bullet.location[0] = bullet_vector.x ;
-		   	    bullet.location[1] = bullet_vector.y ;
+
+				bullet.location[0] += bullet_vector.x ;
+				bullet.location[1] += bullet_vector.y ;
 		   	    // console.log(bullet.location);
+
+		   	    bullet.distance += this.config.players.default_bullet_speed * this.config.time.last_update_sec_diff ;
 
 
 		   	}else{
+
 		   		// console.log("Deleting");
-		   		// this.bullets = this.bullets.splice(i,1);
-		   		// console.log(this.bullets);
+		   		this.bullets.splice(i,1);
+		   		console.log(this.bullets);
 		   	}
 		   	// console.log(bullet.distance);
 
@@ -279,16 +333,15 @@ update_player_location : function(player){
 
 
 	var game = new Object(init); 
+	game.generate_free_bullets(200);
+	console.log(game.free_bullets);
 
 
 	io.sockets.on('connect', function(socket){
-		console.log(socket);
 		sockets[socket.id] = socket; 
 
-		socket.on('disconnect', function(){
-			delete sockets[socket.id];
-		});
-		
+
+
 
 		if(debug){
 			console.log("\n Socket_id "+socket.id);
@@ -313,10 +366,10 @@ update_player_location : function(player){
 			// console.log(game.players[game.players_id_key[socket.id]].location);
 		// console.log("Socket_Id: "+socket.id);
 		// console.log("\n Update player location \n"); 
-			
-		});
 
-	
+	});
+
+
 
 
 		
@@ -344,12 +397,32 @@ function gameLoop(){
 
 		for(var socket_id in sockets){
 			var socket = sockets[socket_id];
+
 			socket.on('new_player', function(data){
-				console.log("sasssssssssssssssssssssssssssss");
-				game.new_player(socket.id,data);
+				if(typeof game.players_id_key[socket.id] == 'undefined'){
+					game.new_player(socket.id,data);
+					console.log("Creating player");
+					
+
+				}
 			});
+
+			socket.on('disconnect', function(){
+				delete sockets[socket.id];
+				if(typeof game.players_id_key[socket.id] != 'undefined'){
+					game.players.splice(game.players_id_key[socket.id],1);
+				}
+			});
+
+
+		
+			// console.log(game.players);
+
+
 			socket.emit("player", game.players[game.players_id_key[socket.id]]);
 			socket.emit('bullets', game.bullets);
+			socket.emit('free_bullets', game.free_bullets);
+			socket.emit('players', game.players);
 
 		}
 
@@ -369,7 +442,7 @@ io.on("beforeExist", function(){
 
 process.on('SIGINT', function(){
 	process.exit(0);
-		
+
 		// game = new Object(game);
-});
+	});
 
