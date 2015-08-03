@@ -180,13 +180,14 @@ app = app.controller("mainCtrl", ['$scope', '$window', function($scope,$window){
 
 
 	angular.element(map).on("mousemove", function(e){
-
-		// $scope.player.character_x = e.pageX; 
-		// $scope.player.character_y = e.pageY; 
-		socket.emit('mousemove', {
-			x : e.pageX, 
-			y : e.pageY, 
-		});
+		
+				// $scope.player.character_x = e.pageX; 
+			// $scope.player.character_y = e.pageY; 
+			socket.emit('mousemove', {
+				x : e.pageX, 
+				y : e.pageY, 
+			});
+	
 
 
 	});
@@ -258,6 +259,8 @@ app = app.controller("mainCtrl", ['$scope', '$window', function($scope,$window){
 				  
 			 break;
 			 case "player":
+			 	angle = Math.atan2($scope.player.target_location[1], $scope.player.target_location[1]); 
+			 	// map_context.rotate(angle);
 			 	map_context.drawImage($scope.resources.res.get("player"), Math.round(map.width / 2), Math.round(map.height / 2),$scope.resources.res.get("player").width,$scope.resources.res.get("player").height);
 			 break; 
 			 case "bullets":

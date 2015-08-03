@@ -10,7 +10,7 @@ $(function() {
 		this.minVelocity = 40;
 		this.radius = 0;
 		this.maxVelocity = 30;
-		this.stars = 200;
+		this.stars = 150;
 		this.intervalId = 0;
 	}
 

@@ -429,7 +429,7 @@ function gameLoop(){
 		setImmediate(gameLoop);
 
 
-	}, 10);
+	}, 1000 / 30);
 	
 }
 gameLoop();
